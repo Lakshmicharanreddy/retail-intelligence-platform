@@ -22,5 +22,11 @@ class Settings:
 
     RANDOM_SEED = int(os.getenv("RANDOM_SEED", 42))
 
+    # Records to generate
+    CUSTOMER_COUNT = 500
+    PRODUCT_COUNT = 200
+    STORE_COUNT = 20
+    PROMOTION_COUNT = 25
+
 
 settings = Settings()
