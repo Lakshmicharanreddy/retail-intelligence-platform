@@ -96,9 +96,9 @@ def generate_stores() -> pd.DataFrame:
             "opening_date": fake.date_between(
                 start_date="-15y",
                 end_date="-1y"
-            ),
+            )
 
-            "store_status": random.choice(STORE_STATUS)
+            
 
         })
 

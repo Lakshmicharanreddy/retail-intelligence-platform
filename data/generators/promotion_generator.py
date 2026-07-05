@@ -85,8 +85,7 @@ def generate_promotions() -> pd.DataFrame:
             "start_date": start_date.date(),
 
             "end_date": end_date.date(),
-
-            "promotion_status": random.choice(PROMOTION_STATUS)
+            "is_active": random.choice([True, False])
 
         })
 

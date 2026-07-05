@@ -10,7 +10,7 @@ from config.settings import settings
 
 def get_database_engine() -> Engine:
     """
-    Create and return a SQLAlchemy engine.
+    Create and return a SQLAlchemy Engine.
     """
 
     database_url = (
@@ -32,11 +32,23 @@ def get_database_engine() -> Engine:
     return engine
 
 
+class DatabaseConnection:
+    """
+    Database connection wrapper.
+
+    Provides a reusable SQLAlchemy engine across the project.
+    """
+
+    def __init__(self) -> None:
+        self.engine = get_database_engine()
+
+
 if __name__ == "__main__":
-    engine = get_database_engine()
+
+    db = DatabaseConnection()
 
     try:
-        with engine.connect():
+        with db.engine.connect():
             print("✅ Database connection successful.")
     except Exception as error:
         print(f"❌ Connection failed: {error}")

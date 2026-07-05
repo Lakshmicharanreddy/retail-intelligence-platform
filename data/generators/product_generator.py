@@ -105,9 +105,11 @@ def generate_products() -> pd.DataFrame():
 
             "brand": brand,
 
-            "unit_cost": unit_cost,
+            "supplier": fake.company(),
 
-            "unit_price": unit_price,
+            "cost_price": unit_cost,
+
+            "selling_price": unit_price,
 
             "is_active": random.choice(
                 [True, True, True, False]
