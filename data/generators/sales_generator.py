@@ -302,6 +302,243 @@ class SalesGenerator:
 
         return candidate
 
+        # ------------------------------------------------------------------
+    # Sales Calculation Engine
+    # ------------------------------------------------------------------
+
+    def get_product_details(
+        self,
+        product_id: int
+    ) -> pd.Series:
+        """
+        Return product details for a given product.
+
+        Parameters
+        ----------
+        product_id : int
+            Product identifier.
+
+        Returns
+        -------
+        pd.Series
+            Product details.
+
+        Raises
+        ------
+        ValueError
+            If the product does not exist.
+        """
+
+        product = self.products[
+            self.products["product_id"] == product_id
+        ]
+
+        if product.empty:
+            raise ValueError(
+                f"Product {product_id} not found."
+            )
+
+        return product.iloc[0]
+
+    def find_applicable_promotion(
+        self
+    ) -> pd.Series | None:
+        """
+        Randomly select an active promotion based on the
+        configured promotion probability.
+
+        Returns
+        -------
+        pd.Series | None
+            Selected promotion or None.
+        """
+
+        active_promotions = self.promotions[
+            self.promotions["is_active"]
+        ]
+
+        if active_promotions.empty:
+            return None
+
+        if (
+            random.random()
+            > settings.PROMOTION_PROBABILITY
+        ):
+            return None
+
+        return active_promotions.sample(n=1).iloc[0]
+
+    def calculate_subtotal(
+        self,
+        unit_price: float,
+        quantity: int
+    ) -> float:
+        """
+        Calculate subtotal.
+
+        Returns
+        -------
+        float
+        """
+
+        return round(
+            unit_price * quantity,
+            settings.ROUND_DECIMALS
+        )
+
+    def calculate_discount(
+        self,
+        subtotal: float,
+        promotion: pd.Series | None
+    ) -> tuple[int | None, float]:
+        """
+        Calculate promotion discount.
+
+        Returns
+        -------
+        tuple[int | None, float]
+            Promotion ID and discount amount.
+        """
+
+        if promotion is None:
+            return None, 0.0
+
+        discount = subtotal * (
+            promotion["discount_percentage"] / 100
+        )
+
+        return (
+            int(promotion["promotion_id"]),
+            round(
+                discount,
+                settings.ROUND_DECIMALS
+            )
+        )
+
+    def calculate_tax(
+        self,
+        taxable_amount: float
+    ) -> float:
+        """
+        Calculate GST.
+
+        Returns
+        -------
+        float
+        """
+
+        tax = (
+            taxable_amount
+            * settings.GST_RATE
+        )
+
+        return round(
+            tax,
+            settings.ROUND_DECIMALS
+        )
+
+    def calculate_profit(
+        self,
+        product: pd.Series,
+        quantity: int,
+        discount: float
+    ) -> float:
+        """
+        Calculate gross profit.
+
+        Returns
+        -------
+        float
+        """
+
+        gross_profit = (
+            (
+                product["selling_price"]
+                - product["cost_price"]
+            )
+            * quantity
+        )
+
+        return round(
+            gross_profit - discount,
+            settings.ROUND_DECIMALS
+        )
+
+    def enrich_sale_candidate(
+        self,
+        candidate: dict
+    ) -> dict:
+        """
+        Enrich a sale candidate with financial details.
+
+        Parameters
+        ----------
+        candidate : dict
+            Draft sale transaction.
+
+        Returns
+        -------
+        dict
+            Financially enriched sale.
+        """
+
+        product = self.get_product_details(
+            candidate["product_id"]
+        )
+
+        unit_price = float(
+            product["selling_price"]
+        )
+
+        subtotal = self.calculate_subtotal(
+            unit_price,
+            candidate["quantity"]
+        )
+
+        promotion = self.find_applicable_promotion()
+
+        promotion_id, discount = (
+            self.calculate_discount(
+                subtotal,
+                promotion
+            )
+        )
+
+        taxable_amount = subtotal - discount
+
+        tax = self.calculate_tax(
+            taxable_amount
+        )
+
+        total = round(
+            taxable_amount + tax,
+            settings.ROUND_DECIMALS
+        )
+
+        profit = self.calculate_profit(
+            product,
+            candidate["quantity"],
+            discount
+        )
+
+        candidate.update(
+            {
+                "unit_price": unit_price,
+                "subtotal": subtotal,
+                "promotion_id": promotion_id,
+                "discount_amount": discount,
+                "tax_amount": tax,
+                "total_amount": total,
+                "profit": profit,
+            }
+        )
+
+        logger.info(
+            "Financial details calculated."
+        )
+
+        return candidate
+
 
 if __name__ == "__main__":
 
@@ -313,6 +550,11 @@ if __name__ == "__main__":
 
     candidate = generator.create_sale_candidate()
 
-    print("\nSale Candidate\n")
+    sale = generator.enrich_sale_candidate(
+        candidate
+    )
 
-    print(candidate)
+    print("\nGenerated Sale\n")
+
+    for key, value in sale.items():
+        print(f"{key:<20}: {value}")

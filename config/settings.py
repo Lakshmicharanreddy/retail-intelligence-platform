@@ -3,6 +3,7 @@ Central configuration for the Retail Intelligence Platform.
 """
 
 import os
+
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -47,6 +48,15 @@ class Settings:
 
     MIN_REORDER_LEVEL = 20
     MAX_REORDER_LEVEL = 80
+
+    # ------------------------------------------------------------------
+    # Sales Calculation Configuration
+    # ------------------------------------------------------------------
+    GST_RATE = 0.18
+
+    PROMOTION_PROBABILITY = 0.35
+
+    ROUND_DECIMALS = 2
 
     # ------------------------------------------------------------------
     # Database Table Names
