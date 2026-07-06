@@ -12,6 +12,8 @@ transaction creation begins.
 from __future__ import annotations
 
 import random
+import uuid
+from datetime import timedelta
 from typing import Dict
 
 import pandas as pd
@@ -540,6 +542,210 @@ class SalesGenerator:
         return candidate
 
 
+        # ------------------------------------------------------------------
+    # Transaction Finalization Engine
+    # ------------------------------------------------------------------
+
+    def weighted_choice(
+        self,
+        options: dict[str, float]
+    ) -> str:
+        """
+        Return a weighted random choice from a dictionary.
+
+        Parameters
+        ----------
+        options : dict[str, float]
+            Mapping of option names to probabilities.
+
+        Returns
+        -------
+        str
+            Selected option.
+        """
+
+        return random.choices(
+            population=list(options.keys()),
+            weights=list(options.values()),
+            k=1
+        )[0]
+
+    def generate_payment_method(self) -> str:
+        """
+        Generate a payment method.
+
+        Returns
+        -------
+        str
+            Payment method.
+        """
+
+        return self.weighted_choice(
+            settings.PAYMENT_METHODS
+        )
+
+    def generate_sales_channel(self) -> str:
+        """
+        Generate a sales channel.
+
+        Returns
+        -------
+        str
+            Sales channel.
+        """
+
+        return self.weighted_choice(
+            settings.SALES_CHANNELS
+        )
+
+    def generate_order_status(self) -> str:
+        """
+        Generate an order status.
+
+        Returns
+        -------
+        str
+            Order status.
+        """
+
+        return self.weighted_choice(
+            settings.ORDER_STATUSES
+        )
+
+    def generate_order_timestamp(
+        self
+    ) -> pd.Timestamp:
+        """
+        Generate a random order timestamp within the
+        configured sales period.
+
+        Returns
+        -------
+        pd.Timestamp
+            Random timestamp.
+        """
+
+        start = pd.to_datetime(
+            settings.SALES_START_DATE
+        )
+
+        end = pd.to_datetime(
+            settings.SALES_END_DATE
+        )
+
+        total_seconds = int(
+            (end - start).total_seconds()
+        )
+
+        random_seconds = random.randint(
+            0,
+            total_seconds
+        )
+
+        return start + timedelta(
+            seconds=random_seconds
+        )
+
+    def generate_invoice_number(self) -> str:
+        """
+        Generate a unique invoice number.
+
+        Returns
+        -------
+        str
+            Invoice number.
+        """
+
+        return (
+            f"{settings.INVOICE_PREFIX}-"
+            f"{uuid.uuid4().hex[:10].upper()}"
+        )
+
+    def reduce_inventory(
+        self,
+        inventory_id: int,
+        quantity: int
+    ) -> None:
+        """
+        Reduce inventory in memory after a completed sale.
+
+        Parameters
+        ----------
+        inventory_id : int
+            Inventory identifier.
+
+        quantity : int
+            Quantity sold.
+        """
+
+        mask = (
+            self.inventory["inventory_id"]
+            == inventory_id
+        )
+
+        self.inventory.loc[
+            mask,
+            "stock_quantity"
+        ] -= quantity
+
+        logger.info(
+            "Inventory %d reduced by %d units.",
+            inventory_id,
+            quantity
+        )
+
+    def finalize_sale(
+        self,
+        sale: dict
+    ) -> dict:
+        """
+        Finalize a sale by adding operational metadata.
+
+        Parameters
+        ----------
+        sale : dict
+            Financially enriched sale.
+
+        Returns
+        -------
+        dict
+            Complete sale ready for database insertion.
+        """
+
+        metadata = {
+            "payment_method": (
+                self.generate_payment_method()
+            ),
+            "sales_channel": (
+                self.generate_sales_channel()
+            ),
+            "order_status": (
+                self.generate_order_status()
+            ),
+            "order_timestamp": (
+                self.generate_order_timestamp()
+            ),
+            "invoice_number": (
+                self.generate_invoice_number()
+            ),
+        }
+
+        sale.update(metadata)
+
+        if sale["order_status"] == "Completed":
+
+            self.reduce_inventory(
+                sale["inventory_id"],
+                sale["quantity"]
+            )
+
+        logger.info(
+            "Sale finalized successfully."
+        )
+
+        return sale
+
+
 if __name__ == "__main__":
 
     generator = SalesGenerator()
@@ -554,7 +760,11 @@ if __name__ == "__main__":
         candidate
     )
 
-    print("\nGenerated Sale\n")
+    sale = generator.finalize_sale(
+        sale
+    )
+
+    print("\nFinal Sale\n")
 
     for key, value in sale.items():
         print(f"{key:<20}: {value}")
