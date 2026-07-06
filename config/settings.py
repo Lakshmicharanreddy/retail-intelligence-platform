@@ -88,6 +88,13 @@ class Settings:
     INVOICE_PREFIX = "INV"
 
     # ------------------------------------------------------------------
+# Sales Generation Configuration
+# ------------------------------------------------------------------
+    DEFAULT_SALES_COUNT = 1000
+
+    GENERATION_PROGRESS_INTERVAL = 100
+
+    # ------------------------------------------------------------------
     # Database Table Names
     # ------------------------------------------------------------------
     CUSTOMER_TABLE = "customer"

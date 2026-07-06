@@ -746,6 +746,123 @@ class SalesGenerator:
         return sale
 
 
+        # ------------------------------------------------------------------
+    # Batch Generation Engine
+    # ------------------------------------------------------------------
+
+    def generate_sale(self) -> dict:
+        """
+        Generate one complete retail transaction.
+
+        Returns
+        -------
+        dict
+            Complete sale transaction.
+        """
+
+        candidate = self.create_sale_candidate()
+
+        sale = self.enrich_sale_candidate(
+            candidate
+        )
+
+        sale = self.finalize_sale(
+            sale
+        )
+
+        return sale
+
+    def generate_sales_batch(
+        self,
+        number_of_sales: int
+    ) -> pd.DataFrame:
+        """
+        Generate multiple sales transactions.
+
+        Parameters
+        ----------
+        number_of_sales : int
+            Number of sales to generate.
+
+        Returns
+        -------
+        pd.DataFrame
+            Generated sales.
+        """
+
+        if number_of_sales <= 0:
+            raise ValueError(
+                "number_of_sales must be greater than zero."
+            )
+
+        logger.info(
+            "Generating %d sales...",
+            number_of_sales
+        )
+
+        sales = []
+
+        for index in range(number_of_sales):
+
+            sale = self.generate_sale()
+
+            sales.append(sale)
+
+            if (
+                (index + 1)
+                % settings.GENERATION_PROGRESS_INTERVAL
+                == 0
+            ):
+                logger.info(
+                    "Generated %d/%d sales",
+                    index + 1,
+                    number_of_sales
+                )
+
+        sales_df = pd.DataFrame(sales)
+
+        logger.info(
+            "Sales generation completed."
+        )
+
+        return sales_df
+
+    def get_generation_summary(
+        self,
+        sales_df: pd.DataFrame
+    ) -> None:
+        """
+        Display summary statistics.
+
+        Parameters
+        ----------
+        sales_df : pd.DataFrame
+            Generated sales.
+        """
+
+        logger.info(
+            "Sales Generated : %d",
+            len(sales_df)
+        )
+
+        logger.info(
+            "Revenue : %.2f",
+            sales_df["total_amount"].sum()
+        )
+
+        logger.info(
+            "Profit : %.2f",
+            sales_df["profit"].sum()
+        )
+
+        logger.info(
+            "Average Order Value : %.2f",
+            sales_df["total_amount"].mean()
+        )
+
+    
+
+
 if __name__ == "__main__":
 
     generator = SalesGenerator()
@@ -754,17 +871,14 @@ if __name__ == "__main__":
 
     generator.validate_master_data()
 
-    candidate = generator.create_sale_candidate()
-
-    sale = generator.enrich_sale_candidate(
-        candidate
+    sales_df = generator.generate_sales_batch(
+        settings.DEFAULT_SALES_COUNT
     )
 
-    sale = generator.finalize_sale(
-        sale
+    generator.get_generation_summary(
+        sales_df
     )
 
-    print("\nFinal Sale\n")
+    print("\nFirst Five Sales\n")
 
-    for key, value in sale.items():
-        print(f"{key:<20}: {value}")
+    print(sales_df.head())
