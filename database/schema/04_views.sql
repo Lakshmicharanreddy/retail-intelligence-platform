@@ -229,5 +229,20 @@ SELECT * FROM vw_customer_summary;
 
 
 
+select * from customer
+
+SELECT tablename
+FROM pg_tables
+WHERE schemaname = 'public';
+
+
+
+SELECT COUNT(*) FROM customer;
+SELECT COUNT(*) FROM product;
+SELECT COUNT(*) FROM store;
+SELECT COUNT(*) FROM promotion;
+SELECT COUNT(*) FROM inventory;
+
+
 
 

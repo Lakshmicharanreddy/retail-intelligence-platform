@@ -103,6 +103,13 @@ class Settings:
     PROMOTION_TABLE = "promotion"
     INVENTORY_TABLE = "inventory"
     SALES_TABLE = "sale"
+    # ------------------------------------------------------------------
+# Database Loading Configuration
+# ------------------------------------------------------------------
+
+
+    DEFAULT_SALES_COUNT = 10
+    DB_BATCH_SIZE = 5
 
 
 settings = Settings()

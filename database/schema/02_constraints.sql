@@ -31,6 +31,14 @@ ON UPDATE CASCADE;
 
 
 ALTER TABLE sale
+ADD CONSTRAINT fk_sale_inventory
+FOREIGN KEY (inventory_id)
+REFERENCES inventory(inventory_id)
+ON DELETE RESTRICT
+ON UPDATE CASCADE;
+
+
+ALTER TABLE sale
 ADD CONSTRAINT fk_sale_customer
 FOREIGN KEY (customer_id)
 REFERENCES customer(customer_id)

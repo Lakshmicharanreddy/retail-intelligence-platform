@@ -17,6 +17,7 @@ from datetime import timedelta
 from typing import Dict
 
 import pandas as pd
+from sqlalchemy import text
 
 from config.settings import settings
 from database.connection import DatabaseConnection
@@ -861,6 +862,408 @@ class SalesGenerator:
         )
 
     
+    
+
+    def validate_sales_data(
+        self,
+        sales_df: pd.DataFrame
+    ) -> dict:
+        """
+        Validate generated sales data.
+
+        Returns
+        -------
+        dict
+            Validation statistics.
+        """
+
+        validation = {
+            "total_sales": len(sales_df),
+
+            "negative_revenue": (
+                sales_df["total_amount"] <= 0
+            ).sum(),
+
+            "negative_profit": (
+                sales_df["profit"] < 0
+            ).sum(),
+
+            "invalid_quantity": (
+                sales_df["quantity"] <= 0
+            ).sum(),
+
+            "invalid_unit_price": (
+                sales_df["unit_price"] <= 0
+            ).sum(),
+
+            "negative_tax": (
+                sales_df["tax_amount"] < 0
+            ).sum(),
+
+            "negative_discount": (
+                sales_df["discount_amount"] < 0
+            ).sum(),
+
+            "missing_customer_id": (
+                sales_df["customer_id"].isna()
+            ).sum(),
+
+            "missing_product_id": (
+                sales_df["product_id"].isna()
+            ).sum(),
+
+            "missing_store_id": (
+                sales_df["store_id"].isna()
+            ).sum(),
+
+            "missing_timestamp": (
+                sales_df["order_timestamp"].isna()
+            ).sum(),
+
+            "missing_invoice": (
+                sales_df["invoice_number"].isna()
+            ).sum(),
+
+            "duplicate_invoices": (
+                sales_df["invoice_number"]
+                .duplicated()
+                .sum()
+            ),
+        }
+
+        return validation
+    
+
+    def validate_inventory(
+        self
+    ) -> int:
+        """
+        Count inventory rows having negative stock.
+
+        Returns
+        -------
+        int
+        """
+
+        return (
+            self.inventory["stock_quantity"] < 0
+        ).sum()
+
+
+
+
+    def validate_financials(
+        self,
+        sales_df: pd.DataFrame
+    ) -> int:
+        """
+        Verify financial calculations.
+
+        Returns
+        -------
+        int
+            Number of invalid rows.
+        """
+
+        subtotal = (
+            sales_df["unit_price"]
+            * sales_df["quantity"]
+        ).round(
+            settings.ROUND_DECIMALS
+        )
+
+        total = (
+            subtotal
+            - sales_df["discount_amount"]
+            + sales_df["tax_amount"]
+        ).round(
+            settings.ROUND_DECIMALS
+        )
+
+        invalid = (
+            (
+                subtotal
+                != sales_df["subtotal"]
+            )
+            |
+            (
+                total
+                != sales_df["total_amount"]
+            )
+        )
+
+        return invalid.sum()
+
+    
+    
+
+    def generate_quality_report(
+        self,
+        sales_df: pd.DataFrame
+    ) -> None:
+        """
+        Generate and display data quality report.
+        """
+
+        validation = self.validate_sales_data(
+            sales_df
+        )
+
+        inventory_errors = (
+            self.validate_inventory()
+        )
+
+        financial_errors = (
+            self.validate_financials(
+                sales_df
+            )
+        )
+
+        failed_records = (
+        validation["negative_revenue"]
+        + validation["invalid_quantity"]
+        + validation["invalid_unit_price"]
+        + validation["negative_tax"]
+        + validation["negative_discount"]
+        + validation["missing_customer_id"]
+        + validation["missing_product_id"]
+        + validation["missing_store_id"]
+        + validation["missing_timestamp"]
+        + validation["missing_invoice"]
+        + validation["duplicate_invoices"]
+        + inventory_errors
+        + financial_errors
+    )
+
+        passed_records = (
+            validation["total_sales"]
+            - failed_records
+        )
+
+        logger.info("")
+
+        logger.info(
+            "=" * 40
+        )
+
+        logger.info(
+            "Sales Data Quality Report"
+        )
+
+        logger.info(
+            "=" * 40
+        )
+
+        logger.info(
+            "Total Sales            : %d",
+            validation["total_sales"]
+        )
+
+        logger.info(
+            "Passed Records         : %d",
+            passed_records
+        )
+
+        logger.info(
+            "Failed Records         : %d",
+            failed_records
+        )
+
+        logger.info(
+            "Duplicate Invoices     : %d",
+            validation["duplicate_invoices"]
+        )
+
+        logger.info(
+            "Negative Revenue       : %d",
+            validation["negative_revenue"]
+        )
+
+        logger.info(
+            "Negative Profit        : %d",
+            validation["negative_profit"]
+        )
+
+        logger.info(
+            "Missing Customer IDs   : %d",
+            validation["missing_customer_id"]
+        )
+
+        logger.info(
+            "Missing Product IDs    : %d",
+            validation["missing_product_id"]
+        )
+
+        logger.info(
+            "Missing Store IDs      : %d",
+            validation["missing_store_id"]
+        )
+
+        logger.info(
+            "Inventory Errors       : %d",
+            inventory_errors
+        )
+
+        logger.info(
+            "Financial Errors       : %d",
+            financial_errors
+        )
+
+        logger.info(
+            "Overall Status         : %s",
+            "PASSED"
+            if failed_records == 0
+            else "FAILED"
+        )
+
+        logger.info(
+            "=" * 40
+        )
+
+        return failed_records == 0
+
+
+    def load_sales_to_database(
+        self,
+        sales_df: pd.DataFrame
+    ) -> None:
+        """
+        Load generated sales into PostgreSQL
+        in configurable batches.
+        """
+
+        logger.info(
+            "Loading sales into database..."
+        )
+
+        total_rows = len(sales_df)
+
+        with self.db.engine.begin() as connection:
+
+            for start in range(
+                0,
+                total_rows,
+                settings.DB_BATCH_SIZE
+            ):
+
+                end = min(
+                    start + settings.DB_BATCH_SIZE,
+                    total_rows
+                )
+
+                batch = sales_df.iloc[start:end]
+
+                self.insert_sales_batch(
+                    connection,
+                    batch
+                )
+
+                logger.info(
+                    "Inserted Batch %d (%d rows)",
+                    (start // settings.DB_BATCH_SIZE) + 1,
+                    len(batch)
+                )
+
+        logger.info(
+            "Database Load Completed."
+        )
+
+
+    def insert_sales_batch(
+        self,
+        connection,
+        batch_df: pd.DataFrame
+    ) -> None:
+        """
+        Insert one batch into PostgreSQL.
+        """
+
+        sql = text(
+            """
+            INSERT INTO sale (
+
+                invoice_number,
+                order_timestamp,
+                customer_id,
+                product_id,
+                store_id,
+                inventory_id,
+                promotion_id,
+                quantity,
+                unit_price,
+                subtotal,
+                discount_amount,
+                tax_amount,
+                total_amount,
+                profit,
+                payment_method,
+                sales_channel,
+                order_status
+
+            )
+
+            VALUES (
+
+                :invoice_number,
+                :order_timestamp,
+                :customer_id,
+                :product_id,
+                :store_id,
+                :inventory_id,
+                :promotion_id,
+                :quantity,
+                :unit_price,
+                :subtotal,
+                :discount_amount,
+                :tax_amount,
+                :total_amount,
+                :profit,
+                :payment_method,
+                :sales_channel,
+                :order_status
+
+            )
+            """
+        )
+
+        records = batch_df.to_dict(
+            orient="records"
+        )
+
+        connection.execute(
+            sql,
+            records
+        )
+
+
+    def generate_validate_and_load(
+        self,
+        number_of_sales: int
+    ) -> None:
+        """
+        Complete sales generation pipeline.
+        """
+
+        sales_df = self.generate_sales_batch(
+            number_of_sales
+        )
+
+        self.get_generation_summary(
+            sales_df
+        )
+
+        passed = self.generate_quality_report(
+            sales_df
+        )
+
+        if not passed:
+            raise ValueError(
+                "Sales validation failed. Database loading aborted."
+            )
+
+        self.load_sales_to_database(
+            sales_df
+        )
 
 
 if __name__ == "__main__":
@@ -871,14 +1274,6 @@ if __name__ == "__main__":
 
     generator.validate_master_data()
 
-    sales_df = generator.generate_sales_batch(
+    generator.generate_validate_and_load(
         settings.DEFAULT_SALES_COUNT
     )
-
-    generator.get_generation_summary(
-        sales_df
-    )
-
-    print("\nFirst Five Sales\n")
-
-    print(sales_df.head())

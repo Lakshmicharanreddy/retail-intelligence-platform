@@ -161,14 +161,13 @@ CREATE TABLE inventory (
 -- ============================================================================
 -- SALE TABLE
 -- ============================================================================
-
 CREATE TABLE sale (
 
     sale_id SERIAL PRIMARY KEY,
 
-    order_id VARCHAR(50) NOT NULL,
+    invoice_number VARCHAR(50) NOT NULL UNIQUE,
 
-    sale_timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    order_timestamp TIMESTAMP NOT NULL,
 
     customer_id INTEGER NOT NULL,
 
@@ -176,15 +175,19 @@ CREATE TABLE sale (
 
     store_id INTEGER NOT NULL,
 
+    inventory_id INTEGER NOT NULL,
+
     promotion_id INTEGER,
 
     quantity INTEGER NOT NULL,
 
     unit_price NUMERIC(10,2) NOT NULL,
 
-    discount_amount NUMERIC(10,2) NOT NULL DEFAULT 0.00,
+    subtotal NUMERIC(10,2) NOT NULL,
 
-    tax_amount NUMERIC(10,2) NOT NULL DEFAULT 0.00,
+    discount_amount NUMERIC(10,2) NOT NULL DEFAULT 0,
+
+    tax_amount NUMERIC(10,2) NOT NULL DEFAULT 0,
 
     total_amount NUMERIC(10,2) NOT NULL,
 
@@ -192,9 +195,14 @@ CREATE TABLE sale (
 
     payment_method VARCHAR(30) NOT NULL,
 
-    order_status VARCHAR(30) NOT NULL DEFAULT 'Completed'
+    sales_channel VARCHAR(30) NOT NULL,
 
+    order_status VARCHAR(30) NOT NULL
 );
+
+
+
+
 
 
 
