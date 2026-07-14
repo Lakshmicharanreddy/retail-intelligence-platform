@@ -1230,6 +1230,20 @@ class SalesGenerator:
             orient="records"
         )
 
+        logger.info("========== FIRST RECORD ==========")
+        logger.info(records[0])
+
+        logger.info("========== DATA TYPES ==========")
+        logger.info(batch_df.dtypes)
+
+        for key, value in records[0].items():
+            logger.info(
+                "%s = %s (%s)",
+                key,
+                value,
+                type(value)
+            )
+
         connection.execute(
             sql,
             records
